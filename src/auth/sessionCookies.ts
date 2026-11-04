@@ -3,21 +3,22 @@ import type { CookieOptions, Response } from "express";
 const SESSION_COOKIE_NAME = "session_id";
 
 const sessionCookieOptions = {
-  path: "/",
+	path: "/",
 } satisfies CookieOptions;
 
 type CookieSession = {
-  token: string;
-  expires_at: string;
+	token: string;
+	expires_at: string;
 };
 
 export function setSessionCookie(
-  response: Response,
-  session: CookieSession,
+	response: Response,
+	session: CookieSession,
 ): void {
-  response.cookie(SESSION_COOKIE_NAME, session.token, sessionCookieOptions);
+	const options = { ...sessionCookieOptions, expires: new Date(session.expires_at) }
+	response.cookie(SESSION_COOKIE_NAME, session.token, options);
 }
 
 export function clearSessionCookie(response: Response): void {
-  response.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions);
+	response.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions);
 }

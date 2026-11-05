@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { validatePasswordResetToken, resetPasswordWithToken } from "../auth/passwordResetTokens.ts";
 import type { Dependencies } from "../dependencies.ts";
 import { safeReturnTo } from "../auth/accessControl.ts";
 import {
@@ -431,7 +432,7 @@ export function createAuthRouter(deps: Dependencies): Router {
 
 	router.get("/password-reset/:token", (req, res) => {
 		const token = String(req.params.token ?? "");
-		const resetToken = findPasswordResetToken(db, token);
+		const resetToken = validatePasswordResetToken(db, token);
 
 		if (!resetToken) {
 			res
@@ -449,7 +450,7 @@ export function createAuthRouter(deps: Dependencies): Router {
 	router.post("/password-reset/:token", async (req, res) => {
 		const token = String(req.params.token ?? "");
 		const password = String(req.body.password ?? "");
-		const resetToken = findPasswordResetToken(db, token);
+		const resetToken = validatePasswordResetToken(db, token);
 
 		if (!resetToken) {
 			res
@@ -496,7 +497,7 @@ export function createAuthRouter(deps: Dependencies): Router {
 			return;
 		}
 
-		const passwordHash = await hashPassword(password);
+		const passwordHash = hashPassword(password);
 		const passwordResetSucceeded = true;
 		if (!passwordResetSucceeded) {
 			res
@@ -508,7 +509,7 @@ export function createAuthRouter(deps: Dependencies): Router {
 			return;
 		}
 
-		await updateUserPassword(db, user.id, passwordHash);
+		resetPasswordWithToken(db, token, passwordHash);
 
 		res.type("html").send(renderPasswordResetCompletePage(user.email));
 	});

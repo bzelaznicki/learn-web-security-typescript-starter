@@ -6,56 +6,55 @@ import { encryptShippingDetails, type ShippingDetails } from "./shipping.ts";
 type OrderStatus = "pending" | "paid" | "shipped" | "refunded";
 
 export class InsufficientInventoryError extends Error {
-  constructor() {
-    super(
-      "One or more cart items are no longer available in the requested quantity.",
-    );
-    this.name = "InsufficientInventoryError";
-  }
+	constructor() {
+		super(
+			"One or more cart items are no longer available in the requested quantity.",
+		);
+		this.name = "InsufficientInventoryError";
+	}
 }
 
 export type Order = {
-  id: number;
-  user_id: number;
-  customer_name: string;
-  customer_email: string;
-  status: OrderStatus;
-  total_cents: number;
-  admin_notes: string;
-  shipping_details_encrypted: string | null;
-  created_at: string;
+	id: number;
+	user_id: number;
+	customer_name: string;
+	customer_email: string;
+	status: OrderStatus;
+	total_cents: number;
+	admin_notes: string;
+	shipping_details_encrypted: string | null;
+	created_at: string;
 };
 
 export type OrderItem = {
-  id: number;
-  order_id: number;
-  product_id: number;
-  product_name: string;
-  quantity: number;
-  price_cents: number;
+	id: number;
+	order_id: number;
+	product_id: number;
+	product_name: string;
+	quantity: number;
+	price_cents: number;
 };
 
 export function createOrderFromCart(
-  db: DatabaseSync,
-  userId: number,
-  items: CartItem[],
-  discountCents: number,
-  shippingDetails: ShippingDetails,
-  adminNotes: string,
-  keyring: Keyring | undefined,
+	db: DatabaseSync,
+	userId: number,
+	items: CartItem[],
+	shippingDetails: ShippingDetails,
+	adminNotes: string,
+	keyring: Keyring | undefined,
 ): Order {
-  const totalCents = getCartTotalCents(items) - discountCents;
-  const encryptedShippingDetails = encryptShippingDetails(
-    shippingDetails,
-    keyring,
-  );
+	const totalCents = getCartTotalCents(items);
+	const encryptedShippingDetails = encryptShippingDetails(
+		shippingDetails,
+		keyring,
+	);
 
-  db.exec("BEGIN");
+	db.exec("BEGIN");
 
-  try {
-    const result = db
-      .prepare(
-        `
+	try {
+		const result = db
+			.prepare(
+				`
           INSERT INTO orders (
             user_id,
             status,
@@ -65,75 +64,75 @@ export function createOrderFromCart(
           )
           VALUES (?, 'pending', ?, ?, ?)
         `,
-      )
-      .run(userId, totalCents, adminNotes, encryptedShippingDetails);
-    const orderId = Number(result.lastInsertRowid);
-    const insertItem = db.prepare(
-      `
+			)
+			.run(userId, totalCents, adminNotes, encryptedShippingDetails);
+		const orderId = Number(result.lastInsertRowid);
+		const insertItem = db.prepare(
+			`
         INSERT INTO order_items (order_id, product_id, quantity, price_cents)
         VALUES (?, ?, ?, ?)
       `,
-    );
-    const decrementInventory = db.prepare(
-      `
+		);
+		const decrementInventory = db.prepare(
+			`
         UPDATE products
         SET inventory_count = inventory_count - ?
         WHERE id = ?
           AND is_active = 1
           AND inventory_count >= ?
       `,
-    );
+		);
 
-    for (const item of items) {
-      const inventoryResult = decrementInventory.run(
-        item.quantity,
-        item.product_id,
-        item.quantity,
-      );
-      if (inventoryResult.changes !== 1) {
-        throw new InsufficientInventoryError();
-      }
-      insertItem.run(orderId, item.product_id, item.quantity, item.price_cents);
-    }
+		for (const item of items) {
+			const inventoryResult = decrementInventory.run(
+				item.quantity,
+				item.product_id,
+				item.quantity,
+			);
+			if (inventoryResult.changes !== 1) {
+				throw new InsufficientInventoryError();
+			}
+			insertItem.run(orderId, item.product_id, item.quantity, item.price_cents);
+		}
 
-    db.prepare(
-      `
+		db.prepare(
+			`
         DELETE FROM cart_items
         WHERE user_id = ?
       `,
-    ).run(userId);
+		).run(userId);
 
-    const order = findOrderById(db, orderId);
-    if (!order) {
-      throw new Error("Failed to create order");
-    }
+		const order = findOrderById(db, orderId);
+		if (!order) {
+			throw new Error("Failed to create order");
+		}
 
-    db.exec("COMMIT");
-    return order;
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
+		db.exec("COMMIT");
+		return order;
+	} catch (error) {
+		db.exec("ROLLBACK");
+		throw error;
+	}
 }
 
 export function approvePawPalOrder(db: DatabaseSync, orderId: number): boolean {
-  const result = db
-    .prepare(
-      `
+	const result = db
+		.prepare(
+			`
         UPDATE orders
         SET status = 'paid'
         WHERE id = ? AND status = 'pending'
       `,
-    )
-    .run(orderId);
+		)
+		.run(orderId);
 
-  return result.changes === 1;
+	return result.changes === 1;
 }
 
 export function listOrdersForUser(db: DatabaseSync, userId: number): Order[] {
-  return db
-    .prepare(
-      `
+	return db
+		.prepare(
+			`
         SELECT
           orders.id,
           orders.user_id,
@@ -149,14 +148,14 @@ export function listOrdersForUser(db: DatabaseSync, userId: number): Order[] {
         WHERE orders.user_id = ?
         ORDER BY orders.created_at DESC, orders.id DESC
       `,
-    )
-    .all(userId) as Order[];
+		)
+		.all(userId) as Order[];
 }
 
 export function listAllOrders(db: DatabaseSync): Order[] {
-  return db
-    .prepare(
-      `
+	return db
+		.prepare(
+			`
         SELECT
           orders.id,
           orders.user_id,
@@ -171,17 +170,17 @@ export function listAllOrders(db: DatabaseSync): Order[] {
         JOIN users ON users.id = orders.user_id
         ORDER BY orders.created_at DESC, orders.id DESC
       `,
-    )
-    .all() as Order[];
+		)
+		.all() as Order[];
 }
 
 export function findOrderById(
-  db: DatabaseSync,
-  orderId: number,
+	db: DatabaseSync,
+	orderId: number,
 ): Order | undefined {
-  return db
-    .prepare(
-      `
+	return db
+		.prepare(
+			`
         SELECT
           orders.id,
           orders.user_id,
@@ -196,14 +195,14 @@ export function findOrderById(
         JOIN users ON users.id = orders.user_id
         WHERE orders.id = ?
       `,
-    )
-    .get(orderId) as Order | undefined;
+		)
+		.get(orderId) as Order | undefined;
 }
 
 export function listOrderItems(db: DatabaseSync, orderId: number): OrderItem[] {
-  return db
-    .prepare(
-      `
+	return db
+		.prepare(
+			`
         SELECT
           order_items.id,
           order_items.order_id,
@@ -216,6 +215,6 @@ export function listOrderItems(db: DatabaseSync, orderId: number): OrderItem[] {
         WHERE order_items.order_id = ?
         ORDER BY order_items.id
       `,
-    )
-    .all(orderId) as OrderItem[];
+		)
+		.all(orderId) as OrderItem[];
 }
